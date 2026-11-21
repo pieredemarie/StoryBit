@@ -1,0 +1,211 @@
+openapi: 3.0.3
+info:
+  title: StoryBit MVP API
+  version: 0.1.0
+  description: Проект контракта; решения в decisions.md ожидают утверждения.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      security: []
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201': { description: Пользователь создан, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/login:
+    post:
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } }
+      responses:
+        '200': { description: Токены, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/refresh:
+    post:
+      security: []
+      operationId: refresh
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RefreshRequest' } } }
+      responses:
+        '200': { description: Ротированные токены, content: { application/json: { schema: { $ref: '#/components/schemas/Tokens' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      operationId: logout
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RefreshRequest' } } }
+      responses:
+        '204': { description: Сессия отозвана }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /users/me:
+    get:
+      operationId: getMyProfile
+      responses:
+        '200': { description: Свой профиль, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ProfileUpdate' } } }
+      responses:
+        '200': { description: Профиль обновлён, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /users/{id}:
+    get:
+      security: []
+      operationId: getPublicProfile
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: Публичный профиль, content: { application/json: { schema: { $ref: '#/components/schemas/PublicUser' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /users/{id}/articles:
+    get:
+      security: []
+      operationId: getAuthorArticles
+      parameters: [ { $ref: '#/components/parameters/Id' }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      responses:
+        '200': { description: Опубликованные статьи автора, content: { application/json: { schema: { $ref: '#/components/schemas/ArticlePage' } } } }
+  /bits:
+    post:
+      operationId: createBit
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BitInput' } } }
+      responses:
+        '201': { description: Бит создан, content: { application/json: { schema: { $ref: '#/components/schemas/Bit' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /bits/my:
+    get:
+      operationId: listMyBits
+      parameters: [ { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      responses:
+        '200': { description: Личная библиотека, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Bit' } }, next_cursor: { type: string, nullable: true } } } } } }
+  /bits/{id}:
+    get:
+      operationId: getBit
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: Бит, content: { application/json: { schema: { $ref: '#/components/schemas/Bit' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      operationId: updateBit
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/BitInput' } } }
+      responses:
+        '200': { description: Новая версия, content: { application/json: { schema: { $ref: '#/components/schemas/Bit' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      operationId: deleteBit
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '204': { description: Скрыт из библиотеки }
+  /articles:
+    post:
+      operationId: createArticle
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, minLength: 1, maxLength: 200 } } } } }
+      responses:
+        '201': { description: Черновик создан, content: { application/json: { schema: { $ref: '#/components/schemas/Article' } } } }
+  /articles/{id}/draft:
+    put:
+      operationId: saveDraft
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DraftInput' } } }
+      responses:
+        '200': { description: Черновик сохранён }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /articles/{id}/publish:
+    post:
+      operationId: publishArticle
+      parameters: [ { $ref: '#/components/parameters/Id' }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, maxLength: 128 }, description: Один ключ и тот же payload возвращают прежний результат; иной payload даёт 409. } ]
+      responses:
+        '200': { description: Опубликованная редакция, content: { application/json: { schema: { $ref: '#/components/schemas/Article' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /articles/{id}:
+    get:
+      security: []
+      operationId: getArticle
+      parameters: [ { $ref: '#/components/parameters/Id' }, { name: revision, in: query, schema: { type: integer, minimum: 1 } } ]
+      responses:
+        '200': { description: Статья, content: { application/json: { schema: { $ref: '#/components/schemas/Article' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      operationId: deleteArticle
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '204': { description: Удалена логически }
+  /articles/{id}/bits:
+    get:
+      security: []
+      operationId: getArticleBits
+      parameters: [ { $ref: '#/components/parameters/Id' }, { name: revision, in: query, schema: { type: integer, minimum: 1 } } ]
+      responses:
+        '200': { description: Состав редакции, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ArticleBit' } } } } }
+  /search/articles:
+    get:
+      security: []
+      operationId: searchArticles
+      parameters: [ { name: title, in: query, schema: { type: string } }, { name: author, in: query, schema: { type: string } }, { name: tags, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }, { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      responses:
+        '200': { description: Результаты поиска, content: { application/json: { schema: { $ref: '#/components/schemas/ArticlePage' } } } }
+  /notifications:
+    get:
+      operationId: listNotifications
+      parameters: [ { $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Cursor' } ]
+      responses:
+        '200': { description: Уведомления, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Notification' } }, next_cursor: { type: string, nullable: true } } } } } }
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '204': { description: Отмечено прочитанным }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+  schemas:
+    Error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, request_id: { type: string } } }
+    RegisterRequest: { type: object, required: [username, email, password], properties: { username: { type: string, maxLength: 50 }, email: { type: string, format: email, maxLength: 255 }, password: { type: string, minLength: 12 } } }
+    LoginRequest: { type: object, required: [email, password], properties: { email: { type: string, format: email }, password: { type: string } } }
+    RefreshRequest: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } }
+    Tokens: { type: object, required: [access_token, refresh_token, token_type, expires_in], properties: { access_token: { type: string }, refresh_token: { type: string }, token_type: { type: string, enum: [Bearer] }, expires_in: { type: integer } } }
+    User: { type: object, required: [id, username, email], properties: { id: { type: string, format: uuid }, username: { type: string }, email: { type: string, format: email } } }
+    PublicUser: { type: object, required: [id, username], properties: { id: { type: string, format: uuid }, username: { type: string } } }
+    ProfileUpdate: { type: object, properties: { username: { type: string, maxLength: 50 } } }
+    BitInput: { type: object, required: [content], properties: { content: { type: string, minLength: 1, maxLength: 1000, description: Лимит считается в Unicode code points. } } }
+    Bit: { type: object, required: [id, author_id, version, content], properties: { id: { type: string, format: uuid }, author_id: { type: string, format: uuid }, version: { type: integer }, content: { type: string } } }
+    DraftBit: { type: object, required: [bit_id, version], properties: { bit_id: { type: string, format: uuid }, version: { type: integer }, source_article_id: { type: string, format: uuid, nullable: true }, source_revision: { type: integer, nullable: true } } }
+    DraftInput: { type: object, required: [title, bits, tags], properties: { title: { type: string, minLength: 1, maxLength: 200 }, bits: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/DraftBit' } }, tags: { type: array, items: { type: string } } } }
+    Article: { type: object, required: [id, author_id, title, status, current_revision], properties: { id: { type: string, format: uuid }, author_id: { type: string, format: uuid }, title: { type: string }, status: { type: string, enum: [draft, published, deleted] }, current_revision: { type: integer } } }
+    ArticleBit: { type: object, required: [position, bit_id, bit_version, content, author_id], properties: { position: { type: integer }, bit_id: { type: string, format: uuid }, bit_version: { type: integer }, content: { type: string }, author_id: { type: string, format: uuid }, source_article_id: { type: string, format: uuid, nullable: true }, source_revision: { type: integer, nullable: true } } }
+    ArticlePage: { type: object, required: [items], properties: { items: { type: array, items: { $ref: '#/components/schemas/Article' } }, next_cursor: { type: string, nullable: true } } }
+    Notification: { type: object, required: [id, article_id, bit_id, created_at, read], properties: { id: { type: string, format: uuid }, article_id: { type: string, format: uuid }, bit_id: { type: string, format: uuid }, created_at: { type: string, format: date-time }, read: { type: boolean } } }
+  responses:
+    BadRequest: { description: Неверный запрос, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized: { description: Требуется авторизация, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Forbidden: { description: Нет прав, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    NotFound: { description: Не найдено, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Conflict: { description: Конфликт состояния, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
